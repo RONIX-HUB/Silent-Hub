@@ -2907,8 +2907,7 @@ function Starlight:CreateWindow(WindowSettings)
 				else
 					greetingString = "Jeez you should be asleep..."
 				end
-				Tab.Instances.Page.playerUser.Text = `{greetingString} | {Player.Name}`
-
+                Tab.Instances.Page.playerUser.Text = `{greetingString} | {(vars.username)}`
 				Tab.Instances.Page.clock.Text =
 					`{formatted}\n{string.format("%02d / %02d / %02d", t.day, t.month, t.year % 100)}`
 			end)
