@@ -2938,7 +2938,7 @@ task.defer(function()
 		end
 
 		-- username + greeting
-		Tab.Instances.Page.playerUser.Text = `{greetingString} | {vars.username}`
+		Tab.Instances.Page.playerUser.Text = `{greetingString} | {vars.username or "Guest"}`
 
 		Tab.Instances.Page.clock.Text =
 			`{formatted}\n{string.format("%02d / %02d / %02d", t.day, t.month, t.year % 100)}`
