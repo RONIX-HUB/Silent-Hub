@@ -2891,27 +2891,59 @@ function Starlight:CreateWindow(WindowSettings)
 		Tab.Instances.Page.Thumbnail.ImageLabel.Image =
 			Players:GetUserThumbnailAsync(Player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
 
-		task.defer(function()
-			connections.__homeTabTime = RunService.RenderStepped:Connect(function()
-				local t = os.date("*t")
-				local hour = t.hour
+local HttpService = game:GetService("HttpService")
 
-				local formatted = string.format("%02d : %02d : %02d", hour, t.min, t.sec)
-				local greetingString = ""
-				if hour >= 4 and hour < 12 then
-					greetingString = "Good Morning!"
-				elseif hour >= 12 and hour < 19 then
-					greetingString = "How's Your Day Going?"
-				elseif hour >= 19 and hour <= 23 then
-					greetingString = "Sweet Dreams."
-				else
-					greetingString = "Jeez you should be asleep..."
-				end
-                Tab.Instances.Page.playerUser.Text = `{greetingString} | {(vars.username)}`
-				Tab.Instances.Page.clock.Text =
-					`{formatted}\n{string.format("%02d / %02d / %02d", t.day, t.month, t.year % 100)}`
-			end)
+local BASE = "Galaxy Hub"
+local USERDATA = BASE .. "/Userdata"
+local ACCOUNTS = USERDATA .. "/Accounts"
+
+if not isfolder(BASE) then makefolder(BASE) end
+if not isfolder(USERDATA) then makefolder(USERDATA) end
+if not isfolder(ACCOUNTS) then makefolder(ACCOUNTS) end
+
+local vars = {
+	username = nil
+}
+
+for _, file in ipairs(listfiles(ACCOUNTS)) do
+	if file:sub(-5) == ".json" then
+		local raw = readfile(file)
+		local ok, dec = pcall(function()
+			return HttpService:JSONDecode(raw)
 		end)
+		if ok and dec and dec.metadata and dec.metadata.logged_in then
+			vars.username = dec.username
+			break
+		end
+	end
+end
+
+
+task.defer(function()
+	connections.__homeTabTime = RunService.RenderStepped:Connect(function()
+		local t = os.date("*t")
+		local hour = t.hour
+
+		local formatted = string.format("%02d : %02d : %02d", hour, t.min, t.sec)
+
+		local greetingString = ""
+		if hour >= 4 and hour < 12 then
+			greetingString = "Good Morning!"
+		elseif hour >= 12 and hour < 19 then
+			greetingString = "How's Your Day Going?"
+		elseif hour >= 19 and hour <= 23 then
+			greetingString = "Sweet Dreams."
+		else
+			greetingString = "Jeez you should be asleep..."
+		end
+
+		-- username + greeting
+		Tab.Instances.Page.playerUser.Text = `{greetingString} | {vars.username}`
+
+		Tab.Instances.Page.clock.Text =
+			`{formatted}\n{string.format("%02d / %02d / %02d", t.day, t.month, t.year % 100)}`
+	end)
+end)
 
 		for _, column in pairs(Tab.Instances.Page.Holder:GetChildren()) do
 			if column.ClassName ~= "Frame" then
