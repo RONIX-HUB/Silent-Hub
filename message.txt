@@ -1,0 +1,697 @@
+--alex's hub
+local uis = game:GetService("UserInputService")
+local players = game:GetService("Players")
+local workspace = game:GetService("Workspace")
+local rs = game:GetService("ReplicatedStorage")
+local runservice = game:GetService("RunService")
+
+local player = players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+local SAFE_POINTS = {--has to be these or change them later if u want
+    Vector3.new(152.50, 8.16, -135.32),--first safe point 
+    Vector3.new(242.45, 8.21, -139.48),
+    Vector3.new(341.16, 8.21, -139.46),
+    Vector3.new(466.67, 8.21, -139.51),
+    Vector3.new(651.80, 8.21, -139.50),
+    Vector3.new(912.58, 8.21, -139.47),
+    Vector3.new(1302.22, 8.21, -139.48),
+    Vector3.new(2398.07, 8.21, -139.03),
+    Vector3.new(2456, 8.23, -136),
+}
+
+for _,v in pairs(workspace.VIPWalls:GetDescendants()) do 
+    if v:IsA("BasePart") then v.CanCollide=false end 
+end
+for _,v in pairs(workspace.VIPWalls:GetDescendants()) do 
+    if v:IsA("TouchTransmitter") then v:Destroy() end 
+end
+
+local state = {
+    auto_farm_running = false,
+    auto_radioactive_running = false,
+    auto_space_running = false,
+    auto_gold_running = false,
+    move_connection = nil,
+    LocalBaseID = nil,
+}
+
+local CharacterManager = {}
+function CharacterManager.UpdateReferences(char)
+    task.wait(0.5)
+    character = char
+    hrp = character:WaitForChild("HumanoidRootPart")
+    humanoid = character:FindFirstChildOfClass("Humanoid")
+end
+function CharacterManager.IsValid()
+    return character and character.Parent and hrp and hrp.Parent
+end
+player.CharacterAdded:Connect(CharacterManager.UpdateReferences)
+
+
+local Movement = {}
+Movement.TWEEN_SPEED = 1999--Feel free to play around with this.
+
+function Movement.StopMovement()
+    if state.move_connection then
+        state.move_connection:Disconnect()
+        state.move_connection = nil
+    end
+end
+
+function Movement.SmoothMoveTo(targetPos)--this is just the movement method which is just using cframe step vector3
+    if not CharacterManager.IsValid() then return false end
+    Movement.StopMovement()
+    state.move_connection = runservice.RenderStepped:Connect(function(dt)
+        if not CharacterManager.IsValid() then Movement.StopMovement() return end
+        local dir = targetPos - hrp.Position
+        local dist = dir.Magnitude
+        if dist < 1 then 
+            hrp.CFrame = CFrame.new(targetPos)
+            Movement.StopMovement()
+            return
+        end
+        local step = math.min(dist, Movement.TWEEN_SPEED * dt)
+        hrp.CFrame = CFrame.new(hrp.Position + dir.Unit * step)
+    end)
+    while state.move_connection do task.wait() end
+    return true
+end
+
+function Movement.FindClosestSafePoint(targetPosition)
+    local closestIndex = 1
+    local closestDistance = math.huge
+    for i, point in ipairs(SAFE_POINTS) do
+        local distance = (point - targetPosition).Magnitude
+        if distance < closestDistance then
+            closestDistance = distance
+            closestIndex = i
+        end
+    end
+    return closestIndex
+end
+
+function Movement.TravelUpToPoint(targetIndex)
+    for i = 1, targetIndex do
+        if not CharacterManager.IsValid() then return false end
+        Movement.SmoothMoveTo(SAFE_POINTS[i])
+        task.wait(0.1)
+    end
+    return true
+end
+
+function Movement.TravelDownToPoint(startIndex)
+    for i = startIndex, 1, -1 do
+        if not CharacterManager.IsValid() then return false end
+        Movement.SmoothMoveTo(SAFE_POINTS[i])
+        task.wait(0.1)
+    end
+    return true
+end
+
+function Movement.NavigateToTarget(targetPosition)
+    if not CharacterManager.IsValid() then return false end
+    local closestPoint = Movement.FindClosestSafePoint(targetPosition)
+    local success = Movement.TravelUpToPoint(closestPoint)
+    if not success then return false end
+    Movement.SmoothMoveTo(targetPosition)
+    return true, closestPoint
+end
+
+function Movement.ReturnFromTarget(safePointIndex)
+    if not CharacterManager.IsValid() then return false end
+    Movement.SmoothMoveTo(SAFE_POINTS[safePointIndex])
+    task.wait(0.1)
+    Movement.TravelDownToPoint(safePointIndex)
+    return true
+end
+
+local BaseManager = {}--just does placing and things
+function BaseManager.GetLocalBase()
+    if not workspace:FindFirstChild("Bases") then return nil end
+    for _, base in pairs(workspace.Bases:GetChildren()) do
+        local success, result = pcall(function()
+            local title = base:FindFirstChild("Title")
+            if not title then return false end
+            local title_gui = title:FindFirstChild("TitleGui")
+            if not title_gui then return false end
+            local frame = title_gui:FindFirstChild("Frame")
+            if not frame then return false end
+            local player_name_label = frame:FindFirstChild("PlayerName")
+            if not player_name_label then return false end
+            if player_name_label.Text == player.Name then
+                state.LocalBaseID = base.Name
+                return true
+            end
+            return false
+        end)
+        if success and result then return state.LocalBaseID end
+    end
+    return nil
+end
+
+function BaseManager.GetEmptySlot()--returns slots with nothing in them
+    local base_id = state.LocalBaseID
+    if not base_id or not workspace:FindFirstChild("Bases") then return nil end
+    local base = workspace.Bases:FindFirstChild(base_id)
+    if not base then return nil end
+    for slot = 1, 40 do
+        local slot_name = "slot " .. slot .. " brainrot"
+        local slot_model = base:FindFirstChild(slot_name)
+        if slot_model then
+            local has_brainrot = false
+            for _, child in pairs(slot_model:GetChildren()) do
+                if child:IsA("Model") and child.Name ~= slot_name then
+                    has_brainrot = true
+                    break
+                end
+            end
+            if not has_brainrot then return slot end
+        end
+    end
+    return nil
+end
+
+function BaseManager.GetSlotPosition(slot)
+    local base_id = state.LocalBaseID
+    if not base_id or not workspace:FindFirstChild("Bases") then return nil end
+    local base = workspace.Bases:FindFirstChild(base_id)
+    if not base then return nil end
+    
+    local slot_name = "slot " .. slot .. " brainrot"
+    local slot_model = base:FindFirstChild(slot_name)
+    if slot_model then
+        local root = slot_model:FindFirstChild("Root")
+        if root and root:IsA("BasePart") then
+            return root.Position
+        end
+        return slot_model:GetPivot().Position
+    end
+    return nil
+end
+
+function BaseManager.GoToSlot(slot)
+    if not CharacterManager.IsValid() then return false end
+    local slot_pos = BaseManager.GetSlotPosition(slot)
+    if not slot_pos then return false end
+    
+    Movement.SmoothMoveTo(slot_pos + Vector3.new(0, 2, 0))
+    return true
+end
+
+
+local RateParser = {}--brainrot best finder
+
+function RateParser.ParseRate(rate_text)
+    if not rate_text or rate_text == "" then return 0 end
+    local cleaned = rate_text:gsub("%$", "")
+    local number = tonumber(cleaned:match("[%d%.]+"))
+    if not number then return 0 end
+        if cleaned:lower():find("k") then
+        return number * 1000
+    elseif cleaned:lower():find("m") then
+        return number * 1000000
+    elseif cleaned:lower():find("b") then
+        return number * 1000000000
+    end
+    
+    return number
+end
+
+function RateParser.GetBrainrotRate(brainrot_model)--this is finding the money per second
+    local success, rate = pcall(function()
+        local model_extents = brainrot_model:FindFirstChild("ModelExtents")
+        if not model_extents then return 0 end
+        
+        local stats_gui = model_extents:FindFirstChild("StatsGui")
+        if not stats_gui then return 0 end
+        
+        local frame = stats_gui:FindFirstChild("Frame")
+        if not frame then return 0 end
+        
+        local rate_label = frame:FindFirstChild("Rate")
+        if not rate_label or not rate_label:IsA("TextLabel") then return 0 end
+        
+        local parsed_rate = RateParser.ParseRate(rate_label.Text)
+        --print(string.format("money persecond %s: %s -> %.2f", brainrot_model.Name, rate_label.Text, parsed_rate)) --if you enable this it will print the money per second.
+        return parsed_rate
+    end)
+    
+    if success then
+        return rate
+    else
+        return 0
+    end
+end
+
+
+local Brainrot = {}
+
+function Brainrot.GetBrainrotName(brainrot_model)--returns brainrot name
+    return brainrot_model.Name
+end
+
+function Brainrot.PlaceInSlot(slot)
+    local base_id = state.LocalBaseID
+    if not base_id or not slot then return false end
+    local args = {"Place Brainrot", base_id, tostring(slot)}
+    pcall(function() 
+        rs:WaitForChild("Packages"):WaitForChild("Net"):WaitForChild("RF/Plot.PlotAction"):InvokeServer(unpack(args)) 
+    end)
+    task.wait(0.3)
+    return true
+end
+
+function Brainrot.PickupBrainrot(brainrot_model, slot)
+    if not CharacterManager.IsValid() then return false end
+
+    local root_part =
+        brainrot_model:FindFirstChild("Root", true)
+        or (brainrot_model.Parent and brainrot_model.Parent:FindFirstChild("Root"))
+
+    if not (root_part and root_part:IsA("BasePart")) then
+        return false
+    end
+
+    local proximity_prompt = root_part:FindFirstChildOfClass("ProximityPrompt")
+    if not proximity_prompt then
+        return false
+    end
+
+    local success, safe_point_index =
+        Movement.NavigateToTarget(root_part.Position)
+    if not success then return false end
+
+    task.wait(0.15)
+    fireproximityprompt(proximity_prompt)
+    task.wait(0.3)
+
+    Movement.ReturnFromTarget(safe_point_index)--found out that this may cause the auto farm to freeze sometimes.
+
+    if BaseManager.GoToSlot(slot) then
+        task.wait(0.3)
+        Brainrot.PlaceInSlot(slot)
+    end
+
+    return true
+end
+
+function Brainrot.FindBestBrainrot()
+    if not CharacterManager.IsValid() then return nil, 0 end
+    local best_brainrot = nil
+    local best_rate = 0
+    local best_name = ""
+    
+    if workspace:FindFirstChild("ActiveBrainrots") then
+        for _, rarity_folder in pairs(workspace.ActiveBrainrots:GetChildren()) do
+            if not state.auto_farm_running then break end
+            if rarity_folder:IsA("Folder") then
+                local rendered_brainrot = rarity_folder:FindFirstChild("RenderedBrainrot")
+                if rendered_brainrot then
+
+                    for _, brainrot_model in pairs(rendered_brainrot:GetChildren()) do
+                        if not state.auto_farm_running then break end
+                        if brainrot_model:IsA("Model") then--grabs the rate
+                            local rate = RateParser.GetBrainrotRate(brainrot_model)
+                            if rate > best_rate then
+                                best_rate = rate
+                                best_brainrot = brainrot_model
+                                best_name = brainrot_model.Name
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return best_brainrot, best_rate, best_name
+end
+
+local AutoFunctions = {}
+
+function AutoFunctions.AutoFarmBest()
+    state.auto_farm_running = true
+    task.spawn(function()
+        while state.auto_farm_running do
+            if not CharacterManager.IsValid() then 
+			
+                task.wait(1) 
+                continue 
+            end
+            
+            BaseManager.GetLocalBase()
+            if not state.LocalBaseID then
+			warn("pls report this to a dev.")
+                task.wait(2)
+                continue
+            end
+            
+            local empty_slot = BaseManager.GetEmptySlot()
+            if not empty_slot then 
+			warn("You dont have any open slots?")
+                task.wait(5) 
+                continue 
+            end
+            
+            local best_brainrot, best_rate, best_name = Brainrot.FindBestBrainrot()
+            if best_brainrot and best_rate > 0 then
+                Brainrot.PickupBrainrot(best_brainrot, empty_slot)
+                task.wait(1)
+            else
+                task.wait(2)
+            end
+        end
+    end)
+end
+
+function AutoFunctions.AutoFarmRadioactive()
+    state.auto_radioactive_running = true
+    task.spawn(function()
+        while state.auto_radioactive_running do
+            if not CharacterManager.IsValid() then task.wait(1) continue end
+            
+            if not workspace:FindFirstChild("EventParts") then task.wait(2) continue end
+            
+            local closest_coin = nil
+            local closest_distance = math.huge
+            
+            for _, coin in pairs(workspace.EventParts:GetChildren()) do
+                if coin.Name:find("Radioactive") then
+                    if coin:IsA("BasePart") or coin:IsA("Model") then
+                        local coin_pos = coin:IsA("Model") and coin:GetPivot().Position or coin.Position
+                        local distance = (hrp.Position - coin_pos).Magnitude
+                        if distance < closest_distance then
+                            closest_distance = distance
+                            closest_coin = coin
+                        end
+                    end
+                end
+            end
+            
+            if closest_coin then
+                local coin_pos = closest_coin:IsA("Model") and closest_coin:GetPivot().Position or closest_coin.Position
+                local success, safe_point_index = Movement.NavigateToTarget(coin_pos)
+                if success then
+                    task.wait(0.3)
+                    Movement.ReturnFromTarget(safe_point_index)
+                end
+                task.wait(0.5)
+            else
+                task.wait(2)
+            end
+        end
+    end)
+end
+
+function AutoFunctions.AutoFarmSpace()
+    state.auto_space_running = true
+    task.spawn(function()
+        while state.auto_space_running do
+            if not CharacterManager.IsValid() then task.wait(1) continue end
+            
+            if not workspace:FindFirstChild("UFOEventParts") then task.wait(2) continue end
+            
+            local closest_coin = nil
+            local closest_distance = math.huge
+            
+            for _, coin in pairs(workspace.UFOEventParts:GetChildren()) do
+                if coin:IsA("BasePart") or coin:IsA("Model") then
+                    local coin_pos = coin:IsA("Model") and coin:GetPivot().Position or coin.Position
+                    local distance = (hrp.Position - coin_pos).Magnitude
+                    if distance < closest_distance then
+                        closest_distance = distance
+                        closest_coin = coin
+                    end
+                end
+            end
+            
+            if closest_coin then
+                local coin_pos = closest_coin:IsA("Model") and closest_coin:GetPivot().Position or closest_coin.Position
+                local success, safe_point_index = Movement.NavigateToTarget(coin_pos)
+                if success then
+                    task.wait(0.3)
+                    Movement.ReturnFromTarget(safe_point_index)
+                end
+                task.wait(0.5)
+            else
+                task.wait(2)
+            end
+        end
+    end)
+end
+
+function AutoFunctions.AutoFarmGold()
+    state.auto_gold_running = true
+    task.spawn(function()
+        while state.auto_gold_running do
+            if not CharacterManager.IsValid() then task.wait(1) continue end
+            
+            if not workspace:FindFirstChild("MoneyEventParts") then task.wait(2) continue end
+            
+            local closest_bar = nil
+            local closest_distance = math.huge
+            
+            for _, bar in pairs(workspace.MoneyEventParts:GetChildren()) do
+                if bar:IsA("BasePart") or bar:IsA("Model") then
+                    local bar_pos = bar:IsA("Model") and bar:GetPivot().Position or bar.Position
+                    local distance = (hrp.Position - bar_pos).Magnitude
+                    if distance < closest_distance then
+                        closest_distance = distance
+                        closest_bar = bar
+                    end
+                end
+            end
+            
+            if closest_bar then
+                local bar_pos = closest_bar:IsA("Model") and closest_bar:GetPivot().Position or closest_bar.Position
+                local success, safe_point_index = Movement.NavigateToTarget(bar_pos)
+                if success then
+                    task.wait(0.3)
+                    Movement.ReturnFromTarget(safe_point_index)
+                end
+                task.wait(0.5)
+            else
+                task.wait(2)
+            end
+        end
+    end)
+end
+--gui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "alexhub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "f"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Position = UDim2.new(0.5, -100, 0.5, -140)
+MainFrame.Size = UDim2.new(0, 200, 0, 280)
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+local Border = Instance.new("UIStroke")
+Border.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+Border.Color = Color3.fromRGB(255, 255, 255)
+Border.Thickness = 2
+Border.Transparency = 0.3
+Border.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Name = "t"
+Title.Parent = MainFrame
+Title.BackgroundTransparency = 1
+Title.Position = UDim2.new(0, 0, 0, 8)
+Title.Size = UDim2.new(1, 0, 0, 25)
+Title.Font = Enum.Font.GothamBold
+Title.Text = "ALEX SCRIPTER X"--TEXT
+Title.TextColor3 = Color3.fromRGB(0, 0, 0)--TEXT COLOR CHANGE THIS IF U WANT
+Title.TextSize = 11
+Title.TextStrokeTransparency = 0.8
+
+local BGIcon = Instance.new("ImageLabel")
+BGIcon.Name = "b"
+BGIcon.Parent = MainFrame
+BGIcon.BackgroundTransparency = 1
+BGIcon.Size = UDim2.new(1, 0, 1, 0)
+BGIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
+BGIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+BGIcon.Image = "rbxassetid://123280408069824"
+BGIcon.ImageTransparency = 0.75
+BGIcon.ScaleType = Enum.ScaleType.Crop--options!!!
+BGIcon.ZIndex = 0
+
+local Subtitle = Instance.new("TextLabel")
+Subtitle.Name = "s"
+Subtitle.Parent = MainFrame
+Subtitle.BackgroundTransparency = 1
+Subtitle.Position = UDim2.new(0, 0, 0, 28)
+Subtitle.Size = UDim2.new(1, 0, 0, 20)
+Subtitle.Font = Enum.Font.Gotham
+Subtitle.Text = "etherealhub.cc"
+Subtitle.TextColor3 = Color3.fromRGB(150, 150, 170)
+Subtitle.TextSize = 9
+
+local Divider = Instance.new("Frame")
+Divider.Name = "d"
+Divider.Parent = MainFrame
+Divider.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+Divider.BorderSizePixel = 0
+Divider.Position = UDim2.new(0.1, 0, 0, 50)
+Divider.Size = UDim2.new(0.8, 0, 0, 1)
+
+local function CreateToggle(name, position, callback)
+    local ToggleFrame = Instance.new("Frame")
+    ToggleFrame.Name = name .. "Frame"
+    ToggleFrame.Parent = MainFrame
+    ToggleFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    ToggleFrame.BorderSizePixel = 0
+    ToggleFrame.Position = UDim2.new(0.05, 0, 0, 60 + (position * 45))
+    ToggleFrame.Size = UDim2.new(0.9, 0, 0, 38)
+    
+    local ToggleCorner = Instance.new("UICorner")
+    ToggleCorner.CornerRadius = UDim.new(0, 6)
+    ToggleCorner.Parent = ToggleFrame
+    
+    local ToggleLabel = Instance.new("TextLabel")
+    ToggleLabel.Name = "Label"
+    ToggleLabel.Parent = ToggleFrame
+    ToggleLabel.BackgroundTransparency = 1
+    ToggleLabel.Position = UDim2.new(0, 12, 0, 0)
+    ToggleLabel.Size = UDim2.new(0.65, 0, 1, 0)
+    ToggleLabel.Font = Enum.Font.GothamMedium
+    ToggleLabel.Text = name
+    ToggleLabel.TextColor3 = Color3.fromRGB(220, 220, 230)
+    ToggleLabel.TextSize = 10
+    ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local ToggleButton = Instance.new("Frame")
+    ToggleButton.Name = "Button"
+    ToggleButton.Parent = ToggleFrame
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    ToggleButton.Position = UDim2.new(0.7, 0, 0.21, 0)
+    ToggleButton.Size = UDim2.new(0, 46, 0.58, 0)
+    
+    local ButtonCorner = Instance.new("UICorner")
+    ButtonCorner.CornerRadius = UDim.new(1, 0)
+    ButtonCorner.Parent = ToggleButton
+    
+    local ToggleIndicator = Instance.new("Frame")
+    ToggleIndicator.Name = "Indicator"
+    ToggleIndicator.Parent = ToggleButton
+    ToggleIndicator.BackgroundColor3 = Color3.fromRGB(120, 120, 130)
+    ToggleIndicator.Position = UDim2.new(0.08, 0, 0.12, 0)
+    ToggleIndicator.Size = UDim2.new(0.38, 0, 0.76, 0)
+    
+    local IndicatorCorner = Instance.new("UICorner")
+    IndicatorCorner.CornerRadius = UDim.new(1, 0)
+    IndicatorCorner.Parent = ToggleIndicator
+    
+    local enabled = false
+    
+    local ToggleDetector = Instance.new("TextButton")
+    ToggleDetector.Parent = ToggleFrame
+    ToggleDetector.BackgroundTransparency = 1
+    ToggleDetector.Size = UDim2.new(1, 0, 1, 0)
+    ToggleDetector.Text = ""
+    
+    ToggleDetector.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        if enabled then
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
+            ToggleIndicator.Position = UDim2.new(0.54, 0, 0.12, 0)
+            ToggleIndicator.BackgroundColor3 = Color3.fromRGB(180, 180, 185)
+        else
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+            ToggleIndicator.Position = UDim2.new(0.08, 0, 0.12, 0)
+            ToggleIndicator.BackgroundColor3 = Color3.fromRGB(120, 120, 130)
+        end
+        callback(enabled)
+    end)
+end
+
+CreateToggle("AUTO FARM BEST", 0, function(enabled)
+    if enabled then
+        AutoFunctions.AutoFarmBest()
+    else
+        state.auto_farm_running = false
+    end
+end)
+
+CreateToggle("RADIOACTIVE", 1, function(enabled)
+    if enabled then
+        AutoFunctions.AutoFarmRadioactive()
+    else
+        state.auto_radioactive_running = false
+    end
+end)
+
+CreateToggle("SPACE COINS", 2, function(enabled)
+    if enabled then
+        AutoFunctions.AutoFarmSpace()
+    else
+        state.auto_space_running = false
+    end
+end)
+
+CreateToggle("GOLD BARS", 3, function(enabled)
+    if enabled then
+        AutoFunctions.AutoFarmGold()
+    else
+        state.auto_gold_running = false
+    end
+end)
+
+local dragging = false
+local draginput
+local dragstart
+local startpos
+
+local function update(input)
+    local delta = input.Position - dragstart
+    MainFrame.Position = UDim2.new(
+        startpos.X.Scale,
+        startpos.X.Offset + delta.X,
+        startpos.Y.Scale,
+        startpos.Y.Offset + delta.Y
+    )
+end
+
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragstart = input.Position
+        startpos = MainFrame.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+MainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        draginput = input
+    end
+end)
+
+uis.InputChanged:Connect(function(input)
+    if input == draginput and dragging then
+        update(input)
+    end
+end)
+
+ScreenGui.Parent = game:GetService("CoreGui")
+
+
+
+BaseManager.GetLocalBase()--this just grabs base
