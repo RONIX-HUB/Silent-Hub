@@ -1,31 +1,35 @@
 SRC LICENSE
 Copyright (c) 2026 bdokkx
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the “Software”), to use,
-copy, modify, and distribute the Software for non-commercial purposes only,
-subject to the following conditions:
-
-Commercial Use Restriction
-Commercial use of the Software (including but not limited to selling,
-monetizing, sublicensing for profit, or using the Software in a product or
-service that generates revenue) is not permitted without explicit written
-permission from the copyright holder.
-
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to use, copy, and modify the Software for non-commercial purposes only, subject to the following conditions:
+Non-Commercial Use Only
+The Software may not be used for commercial purposes under any circumstances without explicit written permission from the copyright holder.
+Commercial use includes, but is not limited to:
+Selling or reselling the Software
+Locking the Software behind paywalls, subscriptions, or “premium” features
+Using the Software to promote, support, or generate revenue
+Including the Software in paid products, services, ScriptHubs, or monetized platforms
+No Misrepresentation / No Rebranding
+You may not claim the Software, in whole or in part, as your own work.
+You may not rebrand, rename, or present the Software as an original creation.
+Minor edits, cosmetic changes, feature toggles, or AI-generated modifications do not constitute original work.
+Any attempt to pass this Software off as your own code is considered a violation of this license.
+Source Integrity
+Redistribution of the Software must retain the original source code and copyright notices.
+Removing, obscuring, or altering attribution, headers, or license text is strictly prohibited.
+Attribution Requirement
+Full and clear credit to the original author (bdokkx) is required in:
+Source files
+Repositories
+ScriptHubs
+Documentation
+Showcases, advertisements, or demonstrations
+Attribution must not be hidden, minimized, or misleading.
 Right of Revocation
-If the Software is used for commercial purposes without permission, the
-copyright holder reserves the right to revoke this license, require the
-removal of the Software, and demand that distribution and use immediately
-cease.
-
-Attribution
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+If the Software is used in violation of this license, including unauthorized commercial use, misrepresentation, or removal of attribution, the copyright holder reserves the right to:
+Revoke this license immediately
+Demand removal of the Software from all platforms
+Require all distribution and use to cease
+Continued use after revocation will be treated as copyright infringement.
+Disclaimer
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR OR COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
